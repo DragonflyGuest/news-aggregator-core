@@ -5,3 +5,5 @@ face_rec_model_path = "../model/dlib_face_recognition_resnet_model_v1.dat"
 faces_folder_base = "../entities/entities_raw"
 output_folder_base = "../entities/entities_process"
 
+raw_json_output = "../raw_json"
+raw_metadata = "../raw_data"

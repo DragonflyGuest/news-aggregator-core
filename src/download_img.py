@@ -73,14 +73,14 @@ def token(client_id, client_secret, grant_type="client_credentials"):
     else:
         raise Exception(f"Token request failed with status code {response.status_code}: {response.text}")
 
-
+'''
 print("Email:", email)
 print("Client ID:", client_id)
 print("Client Secret:", client_secret)
-
+'''
 access_token = token(client_id, client_secret)
 
-print("access token:", access_token)
+# print("access token:", access_token)
 
 def key_info(access_token):
     KEY_INFO_URL = 'https://api.openverse.org/v1/rate_limit/'
@@ -98,7 +98,7 @@ def key_info(access_token):
 
 rate_limit= key_info(access_token)
 
-print(rate_limit)
+# print(rate_limit)
 
 
 def images_search(access_token, term):
@@ -168,5 +168,5 @@ def download_entity_image(entity):
         title = image['title']
         download_image(image['url'], os.path.join(env.faces_folder_base, entity_name))
 
-download_entity_image("Justin Trudeau")
-print("download finished")
+# download_entity_image("Justin Trudeau")
+# print("download finished")

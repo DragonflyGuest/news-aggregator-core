@@ -9,6 +9,8 @@ import json
 from datetime import datetime
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+import os
+import env
 
 
 def parse_feed(feed_url: str) -> feedparser.FeedParserDict:
@@ -156,7 +158,7 @@ def save_enriched_entries(enriched_entries: List[Dict[str, Any]]) -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"enriched_articles_{timestamp}.json"
 
-    with open(filename, 'w', encoding='utf-8') as f:
+    with open(os.path.join(env.raw_json_output, filename), 'w', encoding='utf-8') as f:
         json.dump(enriched_entries, f, ensure_ascii=False, indent=4, cls=JSONEncoder)
 
     print(f"Enriched articles saved to {filename}")
