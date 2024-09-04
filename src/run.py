@@ -9,6 +9,7 @@ import json
 
 def main():
     input_url = ["https://theconversation.com/articles.atom?language=en"]
+    query = "technology"  # You can change this to any search term
 
     # Load the large English word vector model
     nlp = spacy.load("en_core_web_lg")
@@ -19,17 +20,14 @@ def main():
     # Create vector index
     tree, vectors = gb.create_vector_index(nlp, metadata)
 
-    # EXAMPLE SEARCH OF EACH TYPE
-    query = "technology"  # You can change this to any search term
-
-    # text_results = text_search(conn, query)
+    text_results = text_search(conn, query)
 
     # get enriched article
-    enriched_entries = RS.process_feeds(input_url)
-    articles = json.dumps(enriched_entries, ensure_ascii=False, indent=4)
-    articles_json = json.loads(articles) # you should change 0 to the exact number if you use multi input_url
+    extracted_data = understand_url("https://edition.cnn.com/2024/03/11/politics/takeaways-cnn-exclusive-interview-trump-employee-5-mar-a-lago/index.html")
+    entities = count_and_sort_entities(extracted_data['entities'])
+    if len(entities) == 0:
+        return
 
-    entities = utils.extract_by_label(articles_json[0]['named_entities'], "PERSON")
     # for entity in entities:
     #     di.download_entity_image(entity)
     gi.image_process()

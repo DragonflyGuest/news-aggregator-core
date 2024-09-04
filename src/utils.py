@@ -1,3 +1,17 @@
+from collections import Counter
+
+def count_and_sort_entities(entities):
+    # 提取实体类型部分
+    entity_types = [entity[0] for entity in entities if entity[1] == "PERSON"]
+
+    # 使用 Counter 统计实体类型的出现次数
+    count = Counter(entity_types)
+
+    # 对统计结果进行排序，按照出现次数从高到低排序
+    sorted_count = sorted(count.items(), key=lambda x: x[1], reverse=True)
+
+    return sorted_count
+
 def extract_by_label(data, target_label):
     """
     从列表中提取具有特定标签的项。
