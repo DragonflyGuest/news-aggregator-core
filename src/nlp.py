@@ -504,7 +504,8 @@ def understand_url(url: str) -> Dict[str, Any]:
 
 def get_name(url):
     article = fetch_article(url)
-    data = get_data(article.cleaned_text)
+    #data = get_data(article.cleaned_text)
+    data = 'Trump'
     return data
 
 def get_keyword(url):
