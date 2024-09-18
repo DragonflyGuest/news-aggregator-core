@@ -3,11 +3,8 @@ import sqlite3
 import spacy
 import numpy as np
 from sklearn.neighbors import BallTree
-from collections import Counter
-from typing import List, Dict, Tuple, Any
-import random
+from typing import List, Tuple, Any
 import os
-import shutil
 
 def setup_database() -> Tuple[sqlite3.Connection, List[Any]]:
     """
@@ -40,14 +37,14 @@ def setup_database() -> Tuple[sqlite3.Connection, List[Any]]:
     conn.commit()
     return conn, metadata
 
-def text_search(conn: sqlite3.Connection, query: str, limit: int = 10) -> List[Dict[str, str]]:
+def text_search(conn: sqlite3.Connection, query: str, limit: int = 1) -> List[str]:
     """
-    Perform a text-based search on the metadata.
+    Perform a text-based search on the metadata, returning a list of IDs.
     """
     cursor = conn.cursor()
-    cursor.execute("SELECT id, text FROM metadata_fts WHERE text MATCH ? ORDER BY rank LIMIT ?", (query, limit))
+    cursor.execute("SELECT id FROM metadata_fts WHERE text MATCH ? ORDER BY rank LIMIT ?", (query, limit))
     results = cursor.fetchall()
-    return [{'id': r[0], 'text': r[1]} for r in results]
+    return [r[0] for r in results]
 
 def create_vector_index(nlp: spacy.language.Language, metadata: List[Any]) -> Tuple[BallTree, np.ndarray]:
     """
@@ -64,106 +61,74 @@ def create_vector_index(nlp: spacy.language.Language, metadata: List[Any]) -> Tu
     tree = BallTree(vectors, leaf_size=40)
     return tree, vectors
 
-def vector_search(nlp: spacy.language.Language, tree: BallTree, vectors: np.ndarray, metadata: List[Any], query: str, k: int = 10) -> List[Dict[str, Any]]:
+def vector_search(nlp: spacy.language.Language, tree: BallTree, vectors: np.ndarray, metadata: List[Any], query: str, k: int = 1) -> List[str]:
     """
-    Perform a vector-based search on the metadata.
+    Perform a vector-based search on the metadata, returning a list of IDs.
     """
     query_vector = nlp(query).vector.reshape(1, -1)
     distances, indices = tree.query(query_vector, k=k)
     
     results = []
-    for i, idx in enumerate(indices[0]):
+    for idx in indices[0]:
         item = metadata[idx]
-        id = item[0]
-        text = ' '.join([' '.join(sublist) for sublist in item[1:5]])
-        results.append({
-            'id': id,
-            'text': text,
-            'distance': distances[0][i]
-        })
+        results.append(item[0])
     
     return results
 
-def combined_query(query: str, conn, nlp, tree, vectors, metadata) -> List[str]:
+def combined_query(query: str, conn, nlp, tree, vectors, metadata) -> str:
     """
     Perform a combined text-based and vector-based search on the metadata.
+    Return the ID of the most relevant result.
     """
-    results = []
+    result_id = None
 
+    # Try text search first
     try:
         text_results = text_search(conn, query)
-        for result in text_results:
-            results.append(result['id'])
+        if text_results:
+            result_id = text_results[0]
     except Exception as e:
         print("Error in text search:", e)
 
-    try:
-        vector_results = vector_search(nlp, tree, vectors, metadata, query)
-        for result in vector_results:
-            results.append(result['id'])
-    except Exception as e:
-        print("Error in vector search:", e)
-
-    # Remove duplicate result IDs
-    unique_results = list(set(results))
+    # If no result from text search, try vector search
+    if not result_id:
+        try:
+            vector_results = vector_search(nlp, tree, vectors, metadata, query)
+            if vector_results:
+                result_id = vector_results[0]
+        except Exception as e:
+            print("Error in vector search:", e)
     
-    return unique_results
+    return result_id
 
-def save_image(image_id: str, destination_folder: str):
+def get_background(keyword: str) -> str:
     """
-    Copy images from the 'static' folder to the specified folder.
+    Search for the most relevant image based on the keyword and return its path.
     """
-    # Get the directory of the current script
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Construct the relative path to the static folder
-    static_path = os.path.join(current_dir, "..", "static")
-    
-    # Construct the target folder path, which is parallel to the src folder
-    destination_folder = os.path.join(current_dir, "..", "saved_images")
-    os.makedirs(destination_folder, exist_ok=True)  # Create the target folder if it doesn't exist
+    # Load the spaCy model
+    nlp = spacy.load("en_core_web_lg")
 
-    # Construct the source image path
-    source_path = os.path.join(static_path, f'{image_id}.avif')
-    
-    if os.path.exists(source_path):
-        # Construct the target path
-        destination_path = os.path.join(destination_folder, f'{image_id}.avif')
-        shutil.copyfile(source_path, destination_path)
-        print(f"Image {image_id}.avif has been saved to {destination_path}")
+    # Set up the database and get the metadata
+    conn, metadata = setup_database()
+
+    # Create the vector index
+    tree, vectors = create_vector_index(nlp, metadata)
+
+    # Perform the query to get the most relevant ID
+    result_id = combined_query(keyword, conn, nlp, tree, vectors, metadata)
+
+    # If a result was found, return the path to the corresponding image
+    if result_id:
+        # Get the directory of the current script
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Construct the relative path to the static folder
+        static_path = os.path.join(current_dir, "..", "static")
+        # Construct the image path
+        image_path = os.path.join(static_path, f'{result_id}.avif')
+        if os.path.exists(image_path):
+            return image_path
+        else:
+            return f"Image {result_id}.avif not found in the static folder."
     else:
-        print(f"Image {image_id}.avif not found in the static folder.")
+        return "No relevant image found."
 
-
-# Load the spaCy model
-nlp = spacy.load("en_core_web_lg")
-
-# Set up the database and get the metadata
-conn, metadata = setup_database()
-
-# Create the vector index
-tree, vectors = create_vector_index(nlp, metadata)
-
-# Load the article data
-current_dir = os.path.dirname(os.path.abspath(__file__))
-articles_file = os.path.join(current_dir, "..", "raw_json", "enriched_articles_20240828_144730.json")
-
-with open(articles_file, "r", encoding="utf-8") as f:
-    articles = json.load(f)
-
-# Local logic (perform search and save results directly)
-query = input("Please enter the keywords for search: ")
-
-if query:
-    print(f"Keywords for search: {query}")
-    
-    # Perform the query and return results
-    result_ids = combined_query(query, conn, nlp, tree, vectors, metadata)
-    if result_ids:
-        print(f"Found {len(result_ids)} results, saving the top 5 related images:")
-        for image_id in result_ids[:5]:
-            save_image(image_id, 'saved_images')
-    else:
-        print("No related images found.")
-
-print("Execution complete.")
